@@ -211,7 +211,7 @@
             const data = [];
             for (let i = 1; i < lines.length; i++) {
                 // Regex para lidar com vírgulas dentro de aspas (CSV mais robusto)
-                const rowData = lines[i].match(/(?:"[^"]*"|[^,])+/g); 
+                const rowData = lines[i].split('\t');
                 
                 if (!rowData || rowData.length < 4) continue; 
                 
@@ -325,4 +325,5 @@
         }
     </script>
     </body>
+
 </html>
