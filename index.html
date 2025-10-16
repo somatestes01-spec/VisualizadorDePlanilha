@@ -208,24 +208,34 @@
 
         // Extrai os dados do CSV. Assume a ordem: Tipo, Nome, Caminho Completo, Link
         function parseCSV(lines) {
-            const data = [];
-            for (let i = 1; i < lines.length; i++) {
-                // Regex para lidar com vírgulas dentro de aspas (CSV mais robusto)
-                const rowData = lines[i].split('\t');
-                
-                if (!rowData || rowData.length < 4) continue; 
-                
-                const sanitize = (str) => str ? str.replace(/"/g, '').trim() : '';
-
-                const tipo = sanitize(rowData[0]);
-                const nome = sanitize(rowData[1]);
-                const caminho = sanitize(rowData[2]);
-                const link = sanitize(rowData[3]);
-                
-                data.push({ tipo, nome, caminho, link });
-            }
-            return data;
+    const data = [];
+    for (let i = 1; i < lines.length; i++) {
+        
+        // **********************************************
+        // ESTA É A LINHA QUE DEVE SER ALTERADA:
+        // Remova a regex complexa e use split('\t') para TSV
+        // **********************************************
+        const rowData = lines[i].split('\t'); // <--- MUDANÇA AQUI!
+        
+        // ------------------------------------------------------------------
+        
+        if (!rowData || rowData.length < 4) {
+            // Se a linha for vazia ou incompleta, ignoramos e pulamos o loop
+            continue; 
         }
+
+        const sanitize = (str) => str ? str.replace(/"/g, '').trim() : '';
+
+        // Certifique-se que as colunas são lidas na ordem correta
+        const tipo = sanitize(rowData[0]);
+        const nome = sanitize(rowData[1]);
+        const caminho = sanitize(rowData[2]);
+        const link = sanitize(rowData[3]);
+        
+        data.push({ tipo, nome, caminho, link });
+    }
+    return data;
+}
 
         // Constrói a estrutura de árvore (JSON aninhado)
         function buildFileTree(filesData) {
@@ -327,3 +337,4 @@
     </body>
 
 </html>
+
