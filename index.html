@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador de Arquivos da Planilha</title>
+    
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background-color: #f0f2f5; 
+            color: #333;
+        }
+        .container { 
+            max-width: 1000px; 
+            margin: 20px auto; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 12px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+        }
+        h1 { color: #007bff; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; }
+        h2 { color: #555; margin-top: 25px; }
+        
+        /* Área de Input */
+        .input-area { 
+            margin-bottom: 30px; 
+            padding: 20px; 
+            border: 1px solid #ccc; 
+            border-radius: 8px; 
+            background-color: #eaf4ff; 
+        }
+        #dataLink { 
+            width: calc(80% - 15px); 
+            padding: 12px; 
+            border: 1px solid #aaa; 
+            border-radius: 6px; 
+            font-size: 1em;
+        }
+        #loadButton { 
+            padding: 12px 20px; 
+            border: none; 
+            background-color: #28a745; 
+            color: white; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            margin-left: 10px; 
+            font-size: 1em;
+            transition: background-color 0.3s;
+        }
+        #loadButton:hover { 
+            background-color: #1e7e34; 
+        }
+
+        /* Mensagens de Feedback */
+        #message { margin-top: 15px; padding: 10px; border-radius: 4px; }
+        .success-message { color: #155724; background-color: #d4edda; border-color: #c3e6cb; }
+        .error-message { color: #721c24; background-color: #f8d7da; border-color: #f5c6cb; }
+
+        /* Estrutura de Pastas (Explorador) */
+        .folder-list {
+            list-style-type: none;
+            padding-left: 0; 
+            margin: 0;
+        }
+
+        .folder-list li {
+            margin: 5px 0;
+            padding-left: 20px; 
+        }
+
+        .folder-name {
+            cursor: pointer;
+            font-weight: 600;
+            color: #007bff;
+            display: block; 
+            padding: 5px 0;
+            user-select: none; 
+        }
+
+        .folder-name:hover {
+            text-decoration: underline;
+        }
+
+        .folder-content {
+            border-left: 1px dashed #ccc;
+            padding-left: 10px;
+            margin-left: 5px;
+        }
+
+        .hidden {
+            display: none; 
+        }
+
+        .file-item {
+            margin: 5px 0;
+            padding-left: 10px;
+            font-size: 0.95em;
+        }
+
+        .file-item a {
+            text-decoration: none;
+            color: #333;
+            transition: color 0.3s;
+        }
+
+        .file-item a:hover {
+            color: #dc3545; 
+            text-decoration: underline;
+        }
+
+        /* Estilização para Ícones (separação visual) */
+        .file-icon {
+            margin-right: 5px;
+            font-size: 1.1em;
+        }
+    </style>
+    </head>
+<body>
+    <div class="container">
+        <h1>Visualizador de Arquivos da Planilha</h1>
+
+        <div class="input-area">
+            <p><strong>1. Preparação:</strong> Publique sua planilha do Google Sheets como **CSV** (Arquivo > Compartilhar > Publicar na web).</p>
+            <p><strong>2. Estrutura da Planilha:</strong> Certifique-se que a ordem é: [Tipo (ARQUIVO/PASTA)], [Nome], [Caminho Completo], [Link]</p>
+            <label for="dataLink">Cole o Link de Publicação da Planilha (CSV):</label>
+            <input type="text" id="dataLink" placeholder="Ex: https://docs.google.com/spreadsheets/d/e/2PACX-1vQ.../pub?output=csv">
+            <button id="loadButton">Carregar Dados</button>
+            <p id="message" class="error-message"></p>
+        </div>
+
+        <h2>Estrutura de Arquivos</h2>
+        <div id="fileExplorer">
+            <p>Carregue os dados para visualizar a estrutura de pastas.</p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loadButton').addEventListener('click', loadData);
+
+        // Mapeamento de extensões para ícones Unicode
+        const iconMap = {
+            'pdf': '&#128196;', // 📕 Documento PDF
+            'doc': '&#128195;', 'docx': '&#128195;', // 📄 Documento Word
+            'xls': '&#128202;', 'xlsx': '&#128202;', 'csv': '&#128202;', // 📊 Planilha Excel
+            'ppt': '&#128452;&#xFE0F;', 'pptx': '&#128452;&#xFE0F;', //  slides Apresentação
+            'jpg': '&#128247;', 'jpeg': '&#128247;', 'png': '&#128247;', 'gif': '&#128247;', // 📷 Imagem
+            'txt': '&#128221;', // 📝 Texto simples
+            'zip': '&#128230;', 'rar': '&#128230;', '7z': '&#128230;',  // 📦 Compactados
+            'default': '&#128279;' // 🔗 Link Padrão
+        };
+
+        function getFileIcon(filename) {
+            const parts = filename.split('.');
+            if (parts.length > 1) {
+                const ext = parts.pop().toLowerCase();
+                // Retorna o código HTML do ícone ou o padrão
+                return iconMap[ext] || iconMap['default'];
+            }
+            return iconMap['default'];
+        }
+
+        async function loadData() {
+            const linkInput = document.getElementById('dataLink').value.trim();
+            const messageElement = document.getElementById('message');
+            const explorerContainer = document.getElementById('fileExplorer');
+            explorerContainer.innerHTML = '<p>Carregando...</p>'; 
+            messageElement.textContent = ''; 
+
+            if (!linkInput) {
+                messageElement.textContent = 'Por favor, insira o link de publicação da planilha.';
+                messageElement.className = 'error-message';
+                explorerContainer.innerHTML = '<p>Carregue os dados para visualizar a estrutura de pastas.</p>';
+                return;
+            }
+
+            try {
+                const response = await fetch(linkInput);
+                if (!response.ok) {
+                    throw new Error(`Erro ao carregar os dados: Status ${response.status}`);
+                }
+                
+                const csvText = await response.text();
+                const lines = csvText.trim().split('\n');
+
+                if (lines.length <= 1) {
+                    throw new Error('O arquivo CSV está vazio ou contém apenas o cabeçalho.');
+                }
+                
+                const filesData = parseCSV(lines);
+                const fileTree = buildFileTree(filesData);
+                
+                explorerContainer.innerHTML = ''; 
+                renderTree(fileTree, explorerContainer);
+
+                messageElement.textContent = `Dados carregados com sucesso! ${filesData.length} registros encontrados.`;
+                messageElement.className = 'success-message';
+
+            } catch (error) {
+                console.error('Erro:', error);
+                messageElement.textContent = `Falha ao carregar. Verifique o link e o formato (CSV). Detalhes: ${error.message}`;
+                messageElement.className = 'error-message';
+                explorerContainer.innerHTML = '<p>Erro ao carregar os dados.</p>';
+            }
+        }
+
+        // Extrai os dados do CSV. Assume a ordem: Tipo, Nome, Caminho Completo, Link
+        function parseCSV(lines) {
+            const data = [];
+            for (let i = 1; i < lines.length; i++) {
+                // Regex para lidar com vírgulas dentro de aspas (CSV mais robusto)
+                const rowData = lines[i].match(/(?:"[^"]*"|[^,])+/g); 
+                
+                if (!rowData || rowData.length < 4) continue; 
+                
+                const sanitize = (str) => str ? str.replace(/"/g, '').trim() : '';
+
+                const tipo = sanitize(rowData[0]);
+                const nome = sanitize(rowData[1]);
+                const caminho = sanitize(rowData[2]);
+                const link = sanitize(rowData[3]);
+                
+                data.push({ tipo, nome, caminho, link });
+            }
+            return data;
+        }
+
+        // Constrói a estrutura de árvore (JSON aninhado)
+        function buildFileTree(filesData) {
+            const root = {};
+
+            filesData.forEach(item => {
+                // Apenas itens classificados como 'ARQUIVO' são processados para a árvore de links
+                // Itens classificados como 'PASTA' na planilha não são estritamente necessários se o Caminho Completo
+                // já define a estrutura, mas o código lida com ambos.
+                
+                const pathParts = item.caminho.replace(/^\/|\/$/g, '').split('/').filter(p => p);
+                let current = root;
+                
+                pathParts.forEach(part => {
+                    if (!current[part]) {
+                        current[part] = { 
+                            _isFolder: true, 
+                            _files: [], 
+                            _children: {}
+                        };
+                    }
+                    current = current[part]._children; 
+                });
+
+                // Se o item for um ARQUIVO, adiciona-o na lista de arquivos da pasta final
+                if (item.tipo.toUpperCase() === 'ARQUIVO' && item.nome) {
+                    current._files.push(item);
+                }
+                // Nota: Itens classificados como 'PASTA' na planilha apenas garantem a existência 
+                // da estrutura, mas não são renderizados como itens de link.
+            });
+
+            return root;
+        }
+
+        // Renderiza a estrutura da árvore em HTML usando recursão
+        function renderTree(tree, container) {
+            const ul = document.createElement('ul');
+            ul.className = 'folder-list';
+            
+            Object.keys(tree).forEach(key => {
+                const folder = tree[key];
+                
+                if (key === '_files' || key === '_isFolder' || key === '_children') return; 
+
+                const li = document.createElement('li');
+                li.className = 'folder';
+                
+                // Nome da Pasta Clicável
+                const folderNameSpan = document.createElement('span');
+                folderNameSpan.className = 'folder-name';
+                folderNameSpan.innerHTML = '&#128447; ' + key; // 📁 Ícone inicial de pasta fechada
+                
+                // Conteúdo da pasta (arquivos e subpastas)
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'folder-content hidden'; 
+                
+                // Ação de clique para expandir/recolher
+                folderNameSpan.onclick = () => {
+                    contentDiv.classList.toggle('hidden');
+                    // Alterna o ícone de pasta: 📁 (fechada) para 📂 (aberta)
+                    folderNameSpan.innerHTML = contentDiv.classList.contains('hidden') ? '&#128447; ' + key : '&#128449; ' + key;
+                };
+
+                li.appendChild(folderNameSpan);
+                
+                // Adicionar Arquivos
+                if (folder._files && folder._files.length > 0) {
+                    folder._files.forEach(file => {
+                        const fileP = document.createElement('p');
+                        fileP.className = 'file-item';
+                        
+                        // Icone do Arquivo
+                        const iconHtml = `<span class="file-icon">${getFileIcon(file.nome)}</span>`;
+                        
+                        const linkA = document.createElement('a');
+                        linkA.href = file.link;
+                        linkA.target = '_blank';
+                        // Ícone do arquivo na frente do NOME do arquivo
+                        linkA.innerHTML = `${iconHtml} ${file.nome}`; 
+                        
+                        fileP.appendChild(linkA);
+                        contentDiv.appendChild(fileP);
+                    });
+                }
+                
+                // Adicionar Subpastas (Chamada Recursiva)
+                if (Object.keys(folder._children).length > 0) {
+                    renderTree(folder._children, contentDiv); 
+                }
+                
+                li.appendChild(contentDiv);
+                ul.appendChild(li);
+            });
+
+            container.appendChild(ul);
+        }
+    </script>
+    </body>
+</html>
